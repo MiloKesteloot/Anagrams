@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anagram Pool — multi-word anagram finder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#dde3db;
+    --paper-2:#d3dad1;
+    --ink:#18241f;
+    --ink-soft:#4d5b53;
+    --tile:#fcfbf7;
+    --rule:#a9b4a8;
+    --live:#1f49c9;
+    --warn:#9a5220;
+    --display:"Bricolage Grotesque",system-ui,sans-serif;
+    --mono:"DM Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --ui:system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--ui);
+    font-size:16px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:32px 20px 96px}
+
+  /* ---- masthead ---- */
+  .eyebrow{
+    font-family:var(--mono);font-size:11px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--ink-soft);margin:0 0 10px
+  }
+  h1{
+    font-family:var(--display);font-weight:800;
+    font-size:clamp(34px,8vw,58px);line-height:.95;
+    letter-spacing:-.03em;margin:0 0 10px
+  }
+  .lede{margin:0 0 28px;max-width:46ch;color:var(--ink-soft)}
+  .lede b{color:var(--ink);font-weight:600}
+
+  /* ---- input ---- */
+  .field{position:relative;margin-bottom:14px}
+  #input{
+    width:100%;font-family:var(--mono);font-size:clamp(20px,5vw,28px);
+    padding:16px 18px;border:2px solid var(--ink);border-radius:2px;
+    background:var(--tile);color:var(--ink);letter-spacing:.04em
+  }
+  #input::placeholder{color:#a4aea6}
+  #input:focus{outline:3px solid var(--live);outline-offset:2px}
+
+  /* ---- the signature: letter tiles ---- */
+  .strip{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+  .word{display:flex;gap:2px;margin-right:12px}
+  .word:last-child{margin-right:0}
+  .tile{
+    display:grid;place-items:center;
+    min-width:26px;height:30px;padding:0 4px;
+    background:var(--tile);border:1.5px solid var(--ink);border-radius:2px;
+    box-shadow:2px 2px 0 var(--ink);
+    font-family:var(--mono);font-weight:500;font-size:15px;
+    text-transform:uppercase
+  }
+  .pool{min-height:34px;margin-bottom:6px}
+  .pool .tile{background:var(--paper-2)}
+  .count{font-family:var(--mono);font-size:12px;color:var(--ink-soft);margin-bottom:22px}
+  .count b{color:var(--ink)}
+
+  /* ---- controls ---- */
+  .panel{border-top:1.5px solid var(--rule);border-bottom:1.5px solid var(--rule);padding:18px 0;margin-bottom:8px}
+  .panel h2{
+    font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--ink-soft);margin:0 0 12px;font-weight:400
+  }
+  .cats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px 20px;margin-bottom:20px}
+  .cat{display:flex;align-items:flex-start;gap:9px;cursor:pointer;padding:3px 0}
+  .cat input{margin:3px 0 0;width:17px;height:17px;accent-color:var(--live);flex:none;cursor:pointer}
+  .cat .name{font-weight:500}
+  .cat .meta{display:block;font-family:var(--mono);font-size:11px;color:var(--ink-soft);line-height:1.35}
+  .cat.dead{opacity:.45;cursor:not-allowed}
+  .cat.dead input{cursor:not-allowed}
+
+  .row{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between}
+  .stepper{display:flex;align-items:center;gap:10px}
+  .stepper label{font-size:14px;color:var(--ink-soft)}
+  .step-btns{display:flex;align-items:center;border:1.5px solid var(--ink);border-radius:2px;background:var(--tile)}
+  .step-btns button{
+    width:34px;height:34px;border:0;background:none;cursor:pointer;
+    font-family:var(--mono);font-size:17px;color:var(--ink)
+  }
+  .step-btns button:hover{background:var(--paper-2)}
+  .step-btns span{
+    min-width:26px;text-align:center;font-family:var(--mono);font-size:15px;
+    border-left:1.5px solid var(--ink);border-right:1.5px solid var(--ink);height:34px;line-height:34px
+  }
+  .go{
+    font-family:var(--display);font-weight:600;font-size:17px;
+    padding:11px 26px;border:2px solid var(--ink);border-radius:2px;
+    background:var(--ink);color:var(--tile);cursor:pointer;
+    box-shadow:3px 3px 0 var(--rule);transition:transform .08s,box-shadow .08s
+  }
+  .go:hover:not(:disabled){transform:translate(1px,1px);box-shadow:2px 2px 0 var(--rule)}
+  .go:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+  .go.stop{background:var(--warn);border-color:var(--warn)}
+  button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(--live);outline-offset:2px}
+
+  /* ---- results ---- */
+  .status{font-family:var(--mono);font-size:13px;color:var(--ink-soft);margin:20px 0 0;min-height:20px}
+  .status.err{color:var(--warn)}
+  .group{margin-top:30px}
+  .group-head{
+    display:flex;align-items:baseline;gap:12px;margin-bottom:14px;
+    border-bottom:1.5px solid var(--ink);padding-bottom:6px
+  }
+  .group-head h3{font-family:var(--display);font-weight:600;font-size:19px;margin:0;letter-spacing:-.01em}
+  .group-head span{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+  .result{padding:7px 0;animation:in .18s ease-out both}
+  @keyframes in{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+  .more{
+    font-family:var(--mono);font-size:13px;background:none;border:0;
+    border-bottom:1.5px solid var(--ink);padding:2px 0;margin-top:12px;cursor:pointer;color:var(--ink)
+  }
+  .empty{
+    border:1.5px dashed var(--rule);padding:22px;margin-top:26px;
+    color:var(--ink-soft);max-width:52ch
+  }
+  .empty b{display:block;color:var(--ink);font-family:var(--display);font-size:18px;margin-bottom:6px}
+  footer{margin-top:60px;padding-top:18px;border-top:1.5px solid var(--rule);
+    font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);line-height:1.7}
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">every letter used · nothing left over</p>
+  <h1>Anagram Pool</h1>
+  <p class="lede">Type letters, get every way to spell them out as real words. <b>dafuyn</b> becomes <b>fun day</b>. Spaces and punctuation are ignored, and results always use the whole pool.</p>
+
+  <div class="field">
+    <input id="input" type="text" placeholder="dafuyn" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Letters to rearrange">
+  </div>
+  <div class="strip pool" id="pool" aria-hidden="true"></div>
+  <p class="count" id="count">&nbsp;</p>
+
+  <div class="panel">
+    <h2>Words to allow</h2>
+    <div class="cats" id="cats"></div>
+
+    <div class="row">
+      <div class="stepper">
+        <label for="minlen-val">Shortest word</label>
+        <div class="step-btns">
+          <button id="minus" type="button" aria-label="Shorter minimum">−</button>
+          <span id="minlen-val" role="status" aria-live="polite">3</span>
+          <button id="plus" type="button" aria-label="Longer minimum">+</button>
+        </div>
+      </div>
+      <button class="go" id="go" type="button" disabled>Find anagrams</button>
+    </div>
+  </div>
+
+  <p class="status" id="status">Loading word lists…</p>
+  <div id="results"></div>
+
+  <footer>
+    Word lists load from public sources on jsDelivr and are cached by your browser.<br>
+    “Obscure” means a word in the large dictionary that isn’t common, a name, or a place.
+  </footer>
+</div>
+
+<!-- ============ search worker ============ -->
+<script type="text/js-worker" id="worker-src">
+'use strict';
+var A = 97;
+
+function countsOf(word){
+  var c = new Int8Array(26);
+  for (var i=0;i<word.length;i++){
+    var k = word.charCodeAt(i) - A;
+    if (k<0||k>25) return null;
+    c[k]++;
+  }
+  return c;
+}
+function fits(wc,pool){
+  for (var i=0;i<26;i++) if (wc[i]>pool[i]) return false;
+  return true;
+}
+
+var DICT = [];
+var stopFlag = false;
+
+self.onmessage = function(e){
+  var m = e.data;
+  if (m.type === 'dict'){ DICT = m.words; self.postMessage({type:'dict-ok', n:DICT.length}); return; }
+  if (m.type === 'stop'){ stopFlag = true; return; }
+  if (m.type === 'search'){ stopFlag = false; search(m.letters, m.minLen, m.cap); }
+};
+
+function search(letters, minLen, cap){
+  var pool = new Int8Array(26), total = 0, i, k;
+  for (i=0;i<letters.length;i++){
+    k = letters.charCodeAt(i) - A;
+    if (k>=0&&k<=25){ pool[k]++; total++; }
+  }
+  if (!total){ self.postMessage({type:'done', found:0, reason:'empty'}); return; }
+
+  // Candidate words: right length, and every letter available in the pool.
+  var cand = [], candC = [], maxLen = 0;
+  for (i=0;i<DICT.length;i++){
+    var w = DICT[i];
+    if (w.length < minLen || w.length > total) continue;
+    var c = countsOf(w);
+    if (!c || !fits(c,pool)) continue;
+    cand.push(w); candC.push(c);
+    if (w.length > maxLen) maxLen = w.length;
+  }
+  self.postMessage({type:'candidates', n:cand.length});
+  if (!cand.length){ self.postMessage({type:'done', found:0, reason:'no-candidates'}); return; }
+
+  // Bucket candidates by letter so we can anchor on the rarest remaining one.
+  var byLetter = [];
+  for (k=0;k<26;k++) byLetter.push([]);
+  for (i=0;i<cand.length;i++)
+    for (k=0;k<26;k++) if (candC[i][k]>0) byLetter[k].push(i);
+
+  var seen = Object.create(null);
+  var maxDepth = Math.floor(total / minLen);
+  var stack = [], remaining = total, found = 0, halted = false;
+  var lastTick = Date.now();
+
+  function emit(){
+    var key = stack.slice().sort(function(a,b){return a-b;}).join(',');
+    if (seen[key]) return;
+    seen[key] = 1;
+    var out = stack.map(function(ix){ return cand[ix]; }).sort();
+    found++;
+    self.postMessage({type:'hit', words:out});
+    if (found >= cap){ halted = true; }
+  }
+
+  function recurse(depthLeft){
+    if (halted || stopFlag) return;
+    if (remaining === 0){ emit(); return; }
+    if (depthLeft === 0) return;
+    if (remaining > depthLeft * maxLen) return;   // too many letters left to ever finish
+
+    if (Date.now() - lastTick > 250){
+      lastTick = Date.now();
+      self.postMessage({type:'tick', found:found});
+    }
+
+    var anchor = -1, best = Infinity;
+    for (var k2=0;k2<26;k2++){
+      if (pool[k2] > 0 && byLetter[k2].length < best){ best = byLetter[k2].length; anchor = k2; }
+    }
+    if (anchor < 0 || best === 0) return;         // a letter no candidate word can absorb
+
+    var list = byLetter[anchor];
+    for (var n=0;n<list.length;n++){
+      var ix = list[n], c = candC[ix], k3;
+      if (!fits(c,pool)) continue;
+      for (k3=0;k3<26;k3++) pool[k3] -= c[k3];
+      remaining -= cand[ix].length;
+      stack.push(ix);
+      recurse(depthLeft-1);
+      stack.pop();
+      remaining += cand[ix].length;
+      for (k3=0;k3<26;k3++) pool[k3] += c[k3];
+      if (halted || stopFlag) return;
+    }
+  }
+
+  // Iterative deepening, so results arrive fewest-words-first.
+  for (var d=1; d<=maxDepth; d++){
+    if (halted || stopFlag) break;
+    self.postMessage({type:'depth', depth:d, max:maxDepth});
+    recurse(d);
+    self.postMessage({type:'depth-done', depth:d});
+  }
+  self.postMessage({
+    type:'done',
+    found:found,
+    reason: stopFlag ? 'stopped' : (halted ? 'capped' : 'complete')
+  });
+}
+</script>
+
+<!-- ============ page ============ -->
+<script>
+(function(){
+'use strict';
+
+var CAP = 2000;          // hard ceiling on results per search
+var PAGE = 60;           // results shown per word-count group before "show more"
+
+/* ---------------- word list sources ----------------
+   Each entry lists fallback URLs, tried in order.        */
+var SOURCES = {
+  big: {
+    label:'the large dictionary',
+    urls:[
+      'https://cdn.jsdelivr.net/npm/an-array-of-english-words@2.0.0/index.json',
+      'https://cdn.jsdelivr.net/npm/word-list@1.0.0/words.txt'
+    ]
+  },
+  common: {
+    label:'Common words',
+    hint:'everyday English, ~10k',
+    urls:[
+      'https://cdn.jsdelivr.net/gh/first20hours/google-10000-english@master/google-10000-english-usa.txt',
+      'https://cdn.jsdelivr.net/gh/first20hours/google-10000-english@master/google-10000-english.txt'
+    ]
+  },
+  names: {
+    label:'People names',
+    hint:'first names and surnames',
+    urls:[
+      'https://cdn.jsdelivr.net/gh/dominictarr/random-name@master/first-names.txt',
+      'https://cdn.jsdelivr.net/gh/dominictarr/random-name@master/names.txt'
+    ],
+    all:true            // load every URL and merge, not first-wins
+  },
+  places: {
+    label:'Place names',
+    hint:'countries, US states and cities',
+    urls:[
+      'https://cdn.jsdelivr.net/gh/samayo/country-json@master/src/country-by-abbreviation.json',
+      'https://cdn.jsdelivr.net/gh/kelvins/US-Cities-Database@main/csv/us_cities.csv'
+    ],
+    all:true
+  }
+};
+
+var CATS = [
+  {id:'common', label:'Common words',  hint:'everyday English'},
+  {id:'names',  label:'People names',  hint:'first names, surnames'},
+  {id:'places', label:'Place names',   hint:'countries, states, cities'},
+  {id:'obscure',label:'Obscure words', hint:'rare, archaic, technical'}
+];
+
+var lists = {};          // id -> array of words
+var status = {};         // id -> 'ok' | 'fail'
+var worker = null;
+var running = false;
+var minLen = 3;
+var groups = {};         // wordCount -> {items, node, shown}
+
+var $ = function(id){ return document.getElementById(id); };
+var input=$('input'), poolEl=$('pool'), countEl=$('count'),
+    statusEl=$('status'), resultsEl=$('results'), goBtn=$('go');
+
+/* ---------------- tiles ---------------- */
+function tileStrip(words){
+  var strip = document.createElement('div');
+  strip.className = 'strip';
+  words.forEach(function(w){
+    var g = document.createElement('div');
+    g.className = 'word';
+    for (var i=0;i<w.length;i++){
+      var t = document.createElement('span');
+      t.className = 'tile';
+      t.textContent = w[i];
+      g.appendChild(t);
+    }
+    strip.appendChild(g);
+  });
+  return strip;
+}
+
+function normalize(s){ return s.toLowerCase().replace(/[^a-z]/g,''); }
+
+function renderPool(){
+  var letters = normalize(input.value);
+  poolEl.innerHTML = '';
+  if (letters) poolEl.appendChild(tileStrip([letters]));
+  countEl.innerHTML = letters
+    ? '<b>' + letters.length + '</b> letters — all of them must be used'
+    : '&nbsp;';
+  updateGo();
+}
+
+/* ---------------- loading ---------------- */
+function parseList(text, url){
+  var out = [];
+  var t = text.trim();
+  if (url.slice(-5) === '.json' || t[0] === '[' || t[0] === '{'){
+    try {
+      var data = JSON.parse(t);
+      var arr = Array.isArray(data) ? data : Object.keys(data);
+      arr.forEach(function(v){
+        if (typeof v === 'string') out.push(v);
+        else if (v && typeof v === 'object'){
+          for (var k in v) if (typeof v[k] === 'string') out.push(v[k]);
+        }
+      });
+    } catch(e){ return []; }
+  } else if (url.slice(-4) === '.csv'){
+    var rows = t.split('\n');
+    for (var i=1;i<rows.length;i++){
+      var cells = rows[i].split(',');
+      for (var j=0;j<cells.length;j++){
+        var cell = cells[j].replace(/"/g,'').trim();
+        if (/^[A-Za-z][A-Za-z '.-]*$/.test(cell)) out.push(cell);
+      }
+    }
+  } else {
+    out = t.split(/\r?\n/);
+  }
+  // Keep pure-letter words only; strip spaces inside multi-word place names.
+  var clean = [], seen = Object.create(null);
+  for (var n=0;n<out.length;n++){
+    var w = String(out[n]).toLowerCase().replace(/[^a-z]/g,'');
+    if (w.length >= 1 && w.length <= 24 && !seen[w]){ seen[w]=1; clean.push(w); }
+  }
+  return clean;
+}
+
+function fetchList(src){
+  var urls = src.urls.slice();
+  if (src.all){
+    return Promise.all(urls.map(function(u){
+      return fetch(u).then(function(r){ if(!r.ok) throw 0; return r.text(); })
+        .then(function(t){ return parseList(t,u); })
+        .catch(function(){ return []; });
+    })).then(function(parts){
+      var merged = [].concat.apply([], parts);
+      if (!merged.length) throw new Error('all sources failed');
+      return merged;
+    });
+  }
+  return (function next(i){
+    if (i >= urls.length) return Promise.reject(new Error('all sources failed'));
+    return fetch(urls[i])
+      .then(function(r){ if(!r.ok) throw 0; return r.text(); })
+      .then(function(t){
+        var p = parseList(t, urls[i]);
+        if (!p.length) throw 0;
+        return p;
+      })
+      .catch(function(){ return next(i+1); });
+  })(0);
+}
+
+function loadAll(){
+  var jobs = ['big','common','names','places'].map(function(id){
+    return fetchList(SOURCES[id])
+      .then(function(words){ lists[id]=words; status[id]='ok'; })
+      .catch(function(){ lists[id]=[]; status[id]='fail'; });
+  });
+
+  return Promise.all(jobs).then(function(){
+    // Obscure = in the big dictionary, but not common, a name, or a place.
+    if (status.big === 'ok'){
+      var exclude = Object.create(null);
+      ['common','names','places'].forEach(function(id){
+        (lists[id]||[]).forEach(function(w){ exclude[w]=1; });
+      });
+      lists.obscure = lists.big.filter(function(w){ return !exclude[w]; });
+      status.obscure = 'ok';
+    } else {
+      lists.obscure = [];
+      status.obscure = 'fail';
+      // Without the big list, "common" alone still works if it loaded.
+    }
+    delete lists.big;
+    renderCats();
+    reportLoad();
+  });
+}
+
+function reportLoad(){
+  var ok = CATS.filter(function(c){ return status[c.id]==='ok'; });
+  var bad = CATS.filter(function(c){ return status[c.id]!=='ok'; });
+  if (!ok.length){
+    statusEl.className = 'status err';
+    statusEl.textContent = 'No word lists loaded. Check your connection, then reload.';
+    return;
+  }
+  statusEl.className = 'status';
+  var total = ok.reduce(function(n,c){ return n + lists[c.id].length; },0);
+  statusEl.textContent = total.toLocaleString() + ' words ready' +
+    (bad.length ? ' — ' + bad.map(function(c){return c.label.toLowerCase();}).join(' and ') + ' unavailable' : '');
+  updateGo();
+}
+
+/* ---------------- category checkboxes ---------------- */
+function renderCats(){
+  var box = $('cats');
+  box.innerHTML = '';
+  CATS.forEach(function(c){
+    var dead = status[c.id] !== 'ok';
+    var lab = document.createElement('label');
+    lab.className = 'cat' + (dead ? ' dead' : '');
+    var cb = document.createElement('input');
+    cb.type='checkbox'; cb.id='cat-'+c.id; cb.disabled=dead;
+    cb.checked = (c.id === 'common') && !dead;
+    cb.addEventListener('change', updateGo);
+    var txt = document.createElement('span');
+    txt.innerHTML = '<span class="name">' + c.label + '</span>' +
+      '<span class="meta">' + (dead ? 'unavailable' : c.hint + ' · ' + lists[c.id].length.toLocaleString()) + '</span>';
+    lab.appendChild(cb); lab.appendChild(txt);
+    box.appendChild(lab);
+  });
+}
+
+function chosen(){
+  return CATS.filter(function(c){
+    var el = $('cat-'+c.id);
+    return el && el.checked && !el.disabled;
+  }).map(function(c){ return c.id; });
+}
+
+function updateGo(){
+  if (running) return;
+  goBtn.disabled = !(normalize(input.value).length && chosen().length);
+}
+
+/* ---------------- search ---------------- */
+function makeWorker(){
+  var src = document.getElementById('worker-src').textContent;
+  var url = URL.createObjectURL(new Blob([src], {type:'text/javascript'}));
+  var w = new Worker(url);
+  w.onmessage = onWorker;
+  return w;
+}
+
+function currentWords(){
+  var picked = chosen(), seen = Object.create(null), out = [];
+  picked.forEach(function(id){
+    var L = lists[id] || [];
+    for (var i=0;i<L.length;i++){
+      var w = L[i];
+      if (!seen[w]){ seen[w]=1; out.push(w); }
+    }
+  });
+  return out;
+}
+
+function startSearch(){
+  var letters = normalize(input.value);
+  if (!letters || !chosen().length) return;
+
+  resultsEl.innerHTML = '';
+  groups = {};
+  running = true;
+  goBtn.textContent = 'Stop';
+  goBtn.classList.add('stop');
+  goBtn.disabled = false;
+  statusEl.className = 'status';
+  statusEl.textContent = 'Searching…';
+
+  if (worker) worker.terminate();
+  worker = makeWorker();
+  worker.postMessage({type:'dict', words: currentWords()});
+  worker.postMessage({type:'search', letters:letters, minLen:minLen, cap:CAP});
+}
+
+function stopSearch(){
+  if (worker) worker.postMessage({type:'stop'});
+}
+
+function groupFor(n){
+  if (groups[n]) return groups[n];
+  var wrap = document.createElement('section');
+  wrap.className = 'group';
+  var head = document.createElement('div');
+  head.className = 'group-head';
+  var h = document.createElement('h3');
+  h.textContent = n === 1 ? 'One word' : n + ' words';
+  var meta = document.createElement('span');
+  head.appendChild(h); head.appendChild(meta);
+  wrap.appendChild(head);
+  var body = document.createElement('div');
+  wrap.appendChild(body);
+  resultsEl.appendChild(wrap);
+  return (groups[n] = {items:[], body:body, meta:meta, shown:0, wrap:wrap});
+}
+
+function paint(g){
+  var upto = Math.min(g.items.length, g.shown + PAGE);
+  for (var i=g.shown;i<upto;i++){
+    var row = document.createElement('div');
+    row.className = 'result';
+    row.appendChild(tileStrip(g.items[i]));
+    g.body.appendChild(row);
+  }
+  g.shown = upto;
+  g.meta.textContent = g.items.length + (g.items.length > g.shown ? ' found · showing ' + g.shown : ' found');
+  var btn = g.wrap.querySelector('.more');
+  if (g.shown < g.items.length){
+    if (!btn){
+      btn = document.createElement('button');
+      btn.className = 'more'; btn.type = 'button';
+      btn.addEventListener('click', function(){ paint(g); });
+      g.wrap.appendChild(btn);
+    }
+    btn.textContent = 'Show ' + Math.min(PAGE, g.items.length - g.shown) + ' more';
+  } else if (btn){ btn.remove(); }
+}
+
+function onWorker(e){
+  var m = e.data;
+  if (m.type === 'hit'){
+    var g = groupFor(m.words.length);
+    g.items.push(m.words);
+    if (g.shown < PAGE) paint(g);
+    else g.meta.textContent = g.items.length + ' found · showing ' + g.shown;
+  }
+  else if (m.type === 'depth'){
+    statusEl.textContent = 'Searching combinations of ' + m.depth + ' word' + (m.depth>1?'s':'') + '…';
+  }
+  else if (m.type === 'depth-done'){
+    var gg = groups[m.depth];
+    if (gg){                       // settle this group into alphabetical order
+      gg.items.sort(function(a,b){ return a.join(' ') < b.join(' ') ? -1 : 1; });
+      gg.body.innerHTML = ''; gg.shown = 0; paint(gg);
+    }
+  }
+  else if (m.type === 'done'){
+    running = false;
+    goBtn.textContent = 'Find anagrams';
+    goBtn.classList.remove('stop');
+    updateGo();
+    if (!m.found){ showEmpty(); return; }
+    var word = m.found === 1 ? 'anagram' : 'anagrams';
+    statusEl.textContent =
+      m.reason === 'capped'  ? 'Stopped at ' + m.found + ' ' + word + ' — there are more.' :
+      m.reason === 'stopped' ? 'Stopped. ' + m.found + ' ' + word + ' so far.' :
+      m.found + ' ' + word + ' found. That is all of them.';
+  }
+}
+
+function showEmpty(){
+  statusEl.textContent = '';
+  var box = document.createElement('div');
+  box.className = 'empty';
+  box.innerHTML = '<b>No anagrams.</b>Every letter has to be used, so one awkward letter can rule out ' +
+    'everything. Try lowering the shortest-word setting, or turning on more word lists.';
+  resultsEl.appendChild(box);
+}
+
+/* ---------------- wiring ---------------- */
+input.addEventListener('input', renderPool);
+input.addEventListener('keydown', function(e){
+  if (e.key === 'Enter' && !running && !goBtn.disabled) startSearch();
+});
+goBtn.addEventListener('click', function(){ running ? stopSearch() : startSearch(); });
+
+function setMin(v){
+  minLen = Math.max(1, Math.min(8, v));
+  $('minlen-val').textContent = minLen;
+}
+$('minus').addEventListener('click', function(){ setMin(minLen-1); });
+$('plus').addEventListener('click', function(){ setMin(minLen+1); });
+
+renderPool();
+renderCats();
+loadAll();
+})();
+</script>
+</body>
+</html>
