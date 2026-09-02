@@ -386,8 +386,13 @@ var SOURCES = {
   },
   common: {
     label:'Common words',
-    hint:'everyday English, ~10k',
+    hint:'everyday English, ranked by real usage',
     urls:[
+      // Real-usage frequency data (subtitles corpus), so it's actual vocabulary
+      // rather than SEO/web-crawl tokens. Cross-checked against the big
+      // dictionary below and capped to COMMON_CAP so junk and one-off names
+      // that happen to appear in subtitles get dropped.
+      {url:'https://cdn.jsdelivr.net/gh/hermitdave/FrequencyWords@master/content/2018/en/en_50k.txt', freq:true},
       'https://cdn.jsdelivr.net/gh/first20hours/google-10000-english@master/google-10000-english-usa.txt',
       'https://cdn.jsdelivr.net/gh/first20hours/google-10000-english@master/google-10000-english.txt'
     ]
@@ -405,8 +410,11 @@ var SOURCES = {
     label:'Place names',
     hint:'countries, US states and cities',
     urls:[
-      'https://cdn.jsdelivr.net/gh/samayo/country-json@master/src/country-by-abbreviation.json',
-      'https://cdn.jsdelivr.net/gh/kelvins/US-Cities-Database@main/csv/us_cities.csv'
+      // country-by-name (not -by-abbreviation) so we don't pick up 2-letter
+      // country codes; the CSV is restricted to STATE_NAME/CITY so we skip
+      // the 2-letter state codes and county column.
+      'https://cdn.jsdelivr.net/gh/samayo/country-json@master/src/country-by-name.json',
+      {url:'https://cdn.jsdelivr.net/gh/kelvins/US-Cities-Database@main/csv/us_cities.csv', columns:['STATE_NAME','CITY']}
     ],
     all:true
   }
@@ -526,7 +534,8 @@ function renderPool(){
 }
 
 /* ---------------- loading ---------------- */
-function parseList(text, url){
+function parseList(text, url, opts){
+  opts = opts || {};
   var out = [];
   var t = text.trim();
   if (url.slice(-5) === '.json' || t[0] === '[' || t[0] === '{'){
@@ -542,20 +551,31 @@ function parseList(text, url){
     } catch(e){ return []; }
   } else if (url.slice(-4) === '.csv'){
     var rows = t.split('\n');
+    var header = rows[0].split(',').map(function(h){ return h.replace(/"/g,'').trim(); });
+    var idxs = opts.columns
+      ? opts.columns.map(function(name){ return header.indexOf(name); }).filter(function(ix){ return ix>=0; })
+      : header.map(function(_,ix){ return ix; });
     for (var i=1;i<rows.length;i++){
+      if (!rows[i]) continue;
       var cells = rows[i].split(',');
-      for (var j=0;j<cells.length;j++){
-        var cell = cells[j].replace(/"/g,'').trim();
+      for (var j=0;j<idxs.length;j++){
+        var cell = (cells[idxs[j]]||'').replace(/"/g,'').trim();
         if (/^[A-Za-z][A-Za-z '.-]*$/.test(cell)) out.push(cell);
       }
     }
   } else {
     out = t.split(/\r?\n/);
+    // Frequency files are "word count" per line; keep just the word.
+    if (opts.freq) out = out.map(function(line){ return line.split(/\s+/)[0] || ''; });
   }
-  // Keep pure-letter words only; strip spaces inside multi-word place names.
+  // Keep pure-letter single words only. Multi-word entries (place names like
+  // "New York", city/county cells we didn't mean to glue together) are
+  // dropped rather than mashed into one fake compound word.
   var clean = [], seen = Object.create(null);
   for (var n=0;n<out.length;n++){
-    var w = String(out[n]).toLowerCase().replace(/[^a-z]/g,'');
+    var raw = String(out[n]);
+    if (/\s/.test(raw.trim())) continue;
+    var w = raw.toLowerCase().replace(/[^a-z]/g,'');
     if (w.length >= 1 && w.length <= 24 && !seen[w]){ seen[w]=1; clean.push(w); }
   }
   return clean;
@@ -565,8 +585,9 @@ function fetchList(src){
   var urls = src.urls.slice();
   if (src.all){
     return Promise.all(urls.map(function(u){
-      return fetch(u).then(function(r){ if(!r.ok) throw 0; return r.text(); })
-        .then(function(t){ return parseList(t,u); })
+      var opts = typeof u === 'object' ? u : {url:u};
+      return fetch(opts.url).then(function(r){ if(!r.ok) throw 0; return r.text(); })
+        .then(function(t){ return parseList(t,opts.url,opts); })
         .catch(function(){ return []; });
     })).then(function(parts){
       var merged = [].concat.apply([], parts);
@@ -576,16 +597,19 @@ function fetchList(src){
   }
   return (function next(i){
     if (i >= urls.length) return Promise.reject(new Error('all sources failed'));
-    return fetch(urls[i])
+    var opts = typeof urls[i] === 'object' ? urls[i] : {url:urls[i]};
+    return fetch(opts.url)
       .then(function(r){ if(!r.ok) throw 0; return r.text(); })
       .then(function(t){
-        var p = parseList(t, urls[i]);
+        var p = parseList(t, opts.url, opts);
         if (!p.length) throw 0;
         return p;
       })
       .catch(function(){ return next(i+1); });
   })(0);
 }
+
+var COMMON_CAP = 20000;   // ceiling on the curated "common" word list
 
 function loadAll(){
   var jobs = ['big','common','names','places'].map(function(id){
@@ -595,6 +619,23 @@ function loadAll(){
   });
 
   return Promise.all(jobs).then(function(){
+    // Common words are ranked by real-world frequency, but that data alone
+    // still contains names and one-off tokens. Cross-check against the big
+    // dictionary and keep only real words, most frequent first.
+    if (status.common === 'ok'){
+      if (status.big === 'ok'){
+        var bigSet = Object.create(null);
+        lists.big.forEach(function(w){ bigSet[w]=1; });
+        var common = [];
+        for (var i=0;i<lists.common.length && common.length<COMMON_CAP;i++){
+          if (bigSet[lists.common[i]]) common.push(lists.common[i]);
+        }
+        lists.common = common;
+      } else {
+        lists.common = lists.common.slice(0, COMMON_CAP);
+      }
+    }
+
     // Obscure = in the big dictionary, but not common, a name, or a place.
     if (status.big === 'ok'){
       var exclude = Object.create(null);
