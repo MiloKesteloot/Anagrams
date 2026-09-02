@@ -56,6 +56,40 @@
   #input::placeholder{color:#a4aea6}
   #input:focus{outline:3px solid var(--live);outline-offset:2px}
 
+  /* ---- required words ---- */
+  .req-field{margin:0 0 22px}
+  .req-field label{
+    display:block;font-family:var(--mono);font-size:11px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px
+  }
+  .req-field label .opt{text-transform:none;letter-spacing:0}
+  #required{
+    width:100%;font-family:var(--mono);font-size:16px;
+    padding:10px 14px;border:1.5px solid var(--ink);border-radius:2px;
+    background:var(--tile);color:var(--ink)
+  }
+  #required::placeholder{color:#a4aea6}
+  #required:focus{outline:3px solid var(--live);outline-offset:2px}
+  .req-row{display:flex;flex-wrap:wrap;gap:16px}
+  .req-row .req-field{flex:1 1 220px;margin-bottom:22px}
+  .req-field.excl label{color:var(--warn)}
+
+  /* ---- clickable result words ---- */
+  .word.interactive{position:relative;cursor:pointer;border-radius:2px}
+  .word.interactive:hover .tile,.word.interactive:focus-visible .tile{border-color:var(--live)}
+  .word-actions{
+    position:absolute;top:-24px;left:50%;transform:translateX(-50%);
+    display:none;gap:3px;background:var(--ink);border-radius:3px;padding:3px;z-index:1
+  }
+  .word.interactive:hover .word-actions,.word.interactive:focus-within .word-actions{display:flex}
+  .word-actions button{
+    width:19px;height:19px;padding:0;border:0;border-radius:2px;
+    background:var(--tile);color:var(--ink);cursor:pointer;
+    font-family:var(--mono);font-size:12px;line-height:1;display:grid;place-items:center
+  }
+  .word-actions button.req:hover{background:var(--live);color:var(--tile)}
+  .word-actions button.excl:hover{background:var(--warn);color:var(--tile)}
+
   /* ---- the signature: letter tiles ---- */
   .strip{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
   .word{display:flex;gap:2px;margin-right:12px}
@@ -152,6 +186,17 @@
   <div class="strip pool" id="pool" aria-hidden="true"></div>
   <p class="count" id="count">&nbsp;</p>
 
+  <div class="req-row">
+    <div class="req-field">
+      <label for="required">Require these words <span class="opt">(optional)</span></label>
+      <input id="required" type="text" placeholder="e.g. door" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Words that must appear in every result">
+    </div>
+    <div class="req-field excl">
+      <label for="excluded">Exclude these words <span class="opt">(optional)</span></label>
+      <input id="excluded" type="text" placeholder="e.g. cat" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Words that must not appear in any result">
+    </div>
+  </div>
+
   <div class="panel">
     <h2>Words to allow</h2>
     <div class="cats" id="cats"></div>
@@ -204,10 +249,12 @@ self.onmessage = function(e){
   var m = e.data;
   if (m.type === 'dict'){ DICT = m.words; self.postMessage({type:'dict-ok', n:DICT.length}); return; }
   if (m.type === 'stop'){ stopFlag = true; return; }
-  if (m.type === 'search'){ stopFlag = false; search(m.letters, m.minLen, m.cap); }
+  if (m.type === 'search'){ stopFlag = false; search(m.letters, m.minLen, m.cap, m.required, m.excluded); }
 };
 
-function search(letters, minLen, cap){
+function search(letters, minLen, cap, required, excluded){
+  required = required || [];
+  excluded = excluded || [];
   var pool = new Int8Array(26), total = 0, i, k;
   for (i=0;i<letters.length;i++){
     k = letters.charCodeAt(i) - A;
@@ -215,10 +262,33 @@ function search(letters, minLen, cap){
   }
   if (!total){ self.postMessage({type:'done', found:0, reason:'empty'}); return; }
 
-  // Candidate words: right length, and every letter available in the pool.
+  // Required words are pulled out of the pool up front; every result must carry them.
+  var reqWord;
+  for (i=0;i<required.length;i++){
+    reqWord = required[i];
+    var rc = countsOf(reqWord);
+    if (!rc){ self.postMessage({type:'done', found:0, reason:'required-invalid', word:reqWord}); return; }
+    for (k=0;k<26;k++){
+      pool[k] -= rc[k];
+      if (pool[k] < 0){ self.postMessage({type:'done', found:0, reason:'required-no-fit', word:reqWord}); return; }
+    }
+    total -= reqWord.length;
+  }
+
+  if (total === 0){
+    self.postMessage({type:'hit', words: required.slice().sort()});
+    self.postMessage({type:'done', found:1, reason:'complete'});
+    return;
+  }
+
+  var exSet = Object.create(null);
+  for (i=0;i<excluded.length;i++) exSet[excluded[i]] = 1;
+
+  // Candidate words: right length, not excluded, and every letter available in the pool.
   var cand = [], candC = [], maxLen = 0;
   for (i=0;i<DICT.length;i++){
     var w = DICT[i];
+    if (exSet[w]) continue;
     if (w.length < minLen || w.length > total) continue;
     var c = countsOf(w);
     if (!c || !fits(c,pool)) continue;
@@ -243,7 +313,7 @@ function search(letters, minLen, cap){
     var key = stack.slice().sort(function(a,b){return a-b;}).join(',');
     if (seen[key]) return;
     seen[key] = 1;
-    var out = stack.map(function(ix){ return cand[ix]; }).sort();
+    var out = required.concat(stack.map(function(ix){ return cand[ix]; })).sort();
     found++;
     self.postMessage({type:'hit', words:out});
     if (found >= cap){ halted = true; }
@@ -284,9 +354,9 @@ function search(letters, minLen, cap){
   // Iterative deepening, so results arrive fewest-words-first.
   for (var d=1; d<=maxDepth; d++){
     if (halted || stopFlag) break;
-    self.postMessage({type:'depth', depth:d, max:maxDepth});
+    self.postMessage({type:'depth', depth:d+required.length, max:maxDepth+required.length});
     recurse(d);
-    self.postMessage({type:'depth-done', depth:d});
+    self.postMessage({type:'depth-done', depth:d+required.length});
   }
   self.postMessage({
     type:'done',
@@ -358,35 +428,100 @@ var groups = {};         // wordCount -> {items, node, shown}
 
 var $ = function(id){ return document.getElementById(id); };
 var input=$('input'), poolEl=$('pool'), countEl=$('count'),
-    statusEl=$('status'), resultsEl=$('results'), goBtn=$('go');
+    statusEl=$('status'), resultsEl=$('results'), goBtn=$('go'),
+    requiredInput=$('required'), excludedInput=$('excluded');
 
 /* ---------------- tiles ---------------- */
-function tileStrip(words){
+function tileStrip(words, interactive){
   var strip = document.createElement('div');
   strip.className = 'strip';
   words.forEach(function(w){
     var g = document.createElement('div');
-    g.className = 'word';
+    g.className = 'word' + (interactive ? ' interactive' : '');
     for (var i=0;i<w.length;i++){
       var t = document.createElement('span');
       t.className = 'tile';
       t.textContent = w[i];
       g.appendChild(t);
     }
+    if (interactive) wireWordActions(g, w);
     strip.appendChild(g);
   });
   return strip;
 }
 
+function wireWordActions(el, word){
+  el.tabIndex = 0;
+  el.setAttribute('role', 'button');
+  el.title = 'Click to require “' + word + '” · right-click to exclude it';
+
+  var actions = document.createElement('div');
+  actions.className = 'word-actions';
+
+  var reqBtn = document.createElement('button');
+  reqBtn.type = 'button'; reqBtn.className = 'req'; reqBtn.textContent = '+';
+  reqBtn.setAttribute('aria-label', 'Require "' + word + '"');
+  reqBtn.addEventListener('click', function(e){ e.stopPropagation(); requireWord(word); });
+
+  var exBtn = document.createElement('button');
+  exBtn.type = 'button'; exBtn.className = 'excl'; exBtn.textContent = '✕';
+  exBtn.setAttribute('aria-label', 'Exclude "' + word + '"');
+  exBtn.addEventListener('click', function(e){ e.stopPropagation(); excludeWord(word); });
+
+  actions.appendChild(reqBtn); actions.appendChild(exBtn);
+  el.appendChild(actions);
+
+  el.addEventListener('click', function(){ requireWord(word); });
+  el.addEventListener('contextmenu', function(e){ e.preventDefault(); excludeWord(word); });
+  el.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); requireWord(word); }
+  });
+}
+
 function normalize(s){ return s.toLowerCase().replace(/[^a-z]/g,''); }
+
+/* ---------------- require / exclude filter fields ---------------- */
+function fieldWords(el){ return el.value.toLowerCase().split(/[^a-z]+/).filter(Boolean); }
+function dedupe(arr){
+  var seen = Object.create(null), out = [];
+  arr.forEach(function(w){ if (!seen[w]){ seen[w]=1; out.push(w); } });
+  return out;
+}
+function requiredWords(){ return dedupe(fieldWords(requiredInput)); }
+function excludedWords(){ return dedupe(fieldWords(excludedInput)); }
+
+function addWordToField(el, word){
+  var words = fieldWords(el);
+  if (words.indexOf(word) === -1) words.push(word);
+  el.value = words.join(', ');
+}
+function removeWordFromField(el, word){
+  el.value = fieldWords(el).filter(function(w){ return w !== word; }).join(', ');
+}
+
+function requireWord(word){
+  removeWordFromField(excludedInput, word);
+  addWordToField(requiredInput, word);
+  renderPool();
+  if (!goBtn.disabled) startSearch();
+}
+function excludeWord(word){
+  removeWordFromField(requiredInput, word);
+  addWordToField(excludedInput, word);
+  renderPool();
+  if (!goBtn.disabled) startSearch();
+}
 
 function renderPool(){
   var letters = normalize(input.value);
   poolEl.innerHTML = '';
   if (letters) poolEl.appendChild(tileStrip([letters]));
-  countEl.innerHTML = letters
-    ? '<b>' + letters.length + '</b> letters — all of them must be used'
-    : '&nbsp;';
+  var bits = [];
+  if (letters) bits.push('<b>' + letters.length + '</b> letters — all of them must be used');
+  var req = requiredWords(), ex = excludedWords();
+  if (req.length) bits.push('must include ' + req.join(', '));
+  if (ex.length) bits.push('excluding ' + ex.join(', '));
+  countEl.innerHTML = bits.length ? bits.join(' · ') : '&nbsp;';
   updateGo();
 }
 
@@ -563,7 +698,7 @@ function startSearch(){
   if (worker) worker.terminate();
   worker = makeWorker();
   worker.postMessage({type:'dict', words: currentWords()});
-  worker.postMessage({type:'search', letters:letters, minLen:minLen, cap:CAP});
+  worker.postMessage({type:'search', letters:letters, minLen:minLen, cap:CAP, required:requiredWords(), excluded:excludedWords()});
 }
 
 function stopSearch(){
@@ -592,7 +727,7 @@ function paint(g){
   for (var i=g.shown;i<upto;i++){
     var row = document.createElement('div');
     row.className = 'result';
-    row.appendChild(tileStrip(g.items[i]));
+    row.appendChild(tileStrip(g.items[i], true));
     g.body.appendChild(row);
   }
   g.shown = upto;
@@ -632,6 +767,8 @@ function onWorker(e){
     goBtn.textContent = 'Find anagrams';
     goBtn.classList.remove('stop');
     updateGo();
+    if (m.reason === 'required-no-fit'){ showRequiredError('“' + m.word + '” needs letters you don’t have in this pool.'); return; }
+    if (m.reason === 'required-invalid'){ showRequiredError('“' + m.word + '” isn’t a usable word — letters only.'); return; }
     if (!m.found){ showEmpty(); return; }
     var word = m.found === 1 ? 'anagram' : 'anagrams';
     statusEl.textContent =
@@ -650,10 +787,24 @@ function showEmpty(){
   resultsEl.appendChild(box);
 }
 
+function showRequiredError(msg){
+  statusEl.textContent = '';
+  var box = document.createElement('div');
+  box.className = 'empty';
+  box.innerHTML = '<b>Can’t use that requirement.</b>' + msg;
+  resultsEl.appendChild(box);
+}
+
 /* ---------------- wiring ---------------- */
 input.addEventListener('input', renderPool);
 input.addEventListener('keydown', function(e){
   if (e.key === 'Enter' && !running && !goBtn.disabled) startSearch();
+});
+[requiredInput, excludedInput].forEach(function(el){
+  el.addEventListener('input', renderPool);
+  el.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && !running && !goBtn.disabled) startSearch();
+  });
 });
 goBtn.addEventListener('click', function(){ running ? stopSearch() : startSearch(); });
 
