@@ -31,6 +31,7 @@
     line-height:1.5;
     -webkit-font-smoothing:antialiased;
   }
+  ::selection{background:var(--live);color:var(--tile)}
   .wrap{max-width:760px;margin:0 auto;padding:32px 20px 96px}
 
   /* ---- masthead ---- */
@@ -43,18 +44,24 @@
     font-size:clamp(34px,8vw,58px);line-height:.95;
     letter-spacing:-.03em;margin:0 0 10px
   }
-  .lede{margin:0 0 28px;max-width:46ch;color:var(--ink-soft)}
+  .lede{margin:0 0 28px;max-width:46ch;color:var(--ink-soft);line-height:1.55}
   .lede b{color:var(--ink);font-weight:600}
+  .byline{
+    font-family:var(--mono);font-size:12px;color:var(--ink-soft);margin:0 0 16px
+  }
+  .byline a{color:var(--ink-soft);text-decoration-color:var(--rule);transition:color .1s,text-decoration-color .1s}
+  .byline a:hover{color:var(--live);text-decoration-color:var(--live)}
 
   /* ---- input ---- */
   .field{position:relative;margin-bottom:14px}
   #input{
     width:100%;font-family:var(--mono);font-size:clamp(20px,5vw,28px);
     padding:16px 18px;border:2px solid var(--ink);border-radius:2px;
-    background:var(--tile);color:var(--ink);letter-spacing:.04em
+    background:var(--tile);color:var(--ink);letter-spacing:.04em;
+    box-shadow:3px 3px 0 var(--rule);transition:box-shadow .12s,transform .12s
   }
   #input::placeholder{color:#a4aea6}
-  #input:focus{outline:3px solid var(--live);outline-offset:2px}
+  #input:focus{outline:3px solid var(--live);outline-offset:2px;box-shadow:3px 3px 0 var(--live)}
 
   /* ---- required words ---- */
   .req-field{margin:0 0 22px}
@@ -63,32 +70,51 @@
     text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px
   }
   .req-field label .opt{text-transform:none;letter-spacing:0}
-  #required{
+  #required,#excluded{
     width:100%;font-family:var(--mono);font-size:16px;
     padding:10px 14px;border:1.5px solid var(--ink);border-radius:2px;
-    background:var(--tile);color:var(--ink)
+    background:var(--tile);color:var(--ink);transition:box-shadow .12s
   }
-  #required::placeholder{color:#a4aea6}
-  #required:focus{outline:3px solid var(--live);outline-offset:2px}
+  #required::placeholder,#excluded::placeholder{color:#a4aea6}
+  #required:focus,#excluded:focus{outline:3px solid var(--live);outline-offset:2px}
+  .req-field.excl #excluded:focus{outline-color:var(--warn)}
   .req-row{display:flex;flex-wrap:wrap;gap:16px}
   .req-row .req-field{flex:1 1 220px;margin-bottom:22px}
   .req-field.excl label{color:var(--warn)}
 
   /* ---- clickable result words ---- */
   .word.interactive{position:relative;cursor:pointer;border-radius:2px}
-  .word.interactive:hover .tile,.word.interactive:focus-visible .tile{border-color:var(--live)}
+  .word.interactive .tile{transition:transform .1s,box-shadow .1s,border-color .1s}
+  .word.interactive:hover .tile,.word.interactive:focus-visible .tile{
+    border-color:var(--live);transform:translate(-1px,-1px);box-shadow:3px 3px 0 var(--live)
+  }
   .word-actions{
-    position:absolute;top:-24px;left:50%;transform:translateX(-50%);
-    display:none;gap:3px;background:var(--ink);border-radius:3px;padding:3px;z-index:1
+    position:absolute;top:-30px;left:50%;
+    display:flex;gap:5px;background:var(--ink);border-radius:20px;padding:4px;z-index:1;
+    box-shadow:0 3px 10px rgba(0,0,0,.28);
+    opacity:0;visibility:hidden;pointer-events:none;
+    transform:translate(-50%,2px) scale(.92);transition:opacity .12s,transform .12s
   }
-  .word.interactive:hover .word-actions,.word.interactive:focus-within .word-actions{display:flex}
+  .word-actions::after{
+    content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);
+    border:4px solid transparent;border-top-color:var(--ink)
+  }
+  .word.interactive:hover .word-actions,.word.interactive:focus-within .word-actions{
+    opacity:1;visibility:visible;pointer-events:auto;transform:translate(-50%,0) scale(1)
+  }
   .word-actions button{
-    width:19px;height:19px;padding:0;border:0;border-radius:2px;
-    background:var(--tile);color:var(--ink);cursor:pointer;
-    font-family:var(--mono);font-size:12px;line-height:1;display:grid;place-items:center
+    width:22px;height:22px;padding:0;border:1.5px solid transparent;border-radius:50%;
+    appearance:none;-webkit-appearance:none;
+    background:var(--tile);cursor:pointer;
+    font-family:var(--mono);font-weight:600;font-size:13px;line-height:1;display:grid;place-items:center;
+    transition:background .12s,color .12s,border-color .12s,transform .12s
   }
-  .word-actions button.req:hover{background:var(--live);color:var(--tile)}
-  .word-actions button.excl:hover{background:var(--warn);color:var(--tile)}
+  .word-actions button.req{color:var(--live)}
+  .word-actions button.excl{color:var(--warn)}
+  .word-actions button:hover{transform:scale(1.15)}
+  .word-actions button:active{transform:scale(.9)}
+  .word-actions button.req:hover{background:var(--live);color:var(--tile);border-color:var(--tile)}
+  .word-actions button.excl:hover{background:var(--warn);color:var(--tile);border-color:var(--tile)}
 
   /* ---- the signature: letter tiles ---- */
   .strip{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
@@ -104,6 +130,11 @@
   }
   .pool{min-height:34px;margin-bottom:6px}
   .pool .tile{background:var(--paper-2)}
+  .pool:empty::before{
+    content:'letters will appear here';
+    font-family:var(--mono);font-size:12px;color:#9aa79c;
+    display:flex;align-items:center;height:30px
+  }
   .count{font-family:var(--mono);font-size:12px;color:var(--ink-soft);margin-bottom:22px}
   .count b{color:var(--ink)}
 
@@ -114,7 +145,11 @@
     color:var(--ink-soft);margin:0 0 12px;font-weight:400
   }
   .cats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px 20px;margin-bottom:20px}
-  .cat{display:flex;align-items:flex-start;gap:9px;cursor:pointer;padding:3px 0}
+  .cat{
+    display:flex;align-items:flex-start;gap:9px;cursor:pointer;
+    padding:5px 8px;margin:0 -8px;border-radius:3px;transition:background .1s
+  }
+  .cat:not(.dead):hover{background:var(--paper-2)}
   .cat input{margin:3px 0 0;width:17px;height:17px;accent-color:var(--live);flex:none;cursor:pointer}
   .cat .name{font-weight:500}
   .cat .meta{display:block;font-family:var(--mono);font-size:11px;color:var(--ink-soft);line-height:1.35}
@@ -127,9 +162,10 @@
   .step-btns{display:flex;align-items:center;border:1.5px solid var(--ink);border-radius:2px;background:var(--tile)}
   .step-btns button{
     width:34px;height:34px;border:0;background:none;cursor:pointer;
-    font-family:var(--mono);font-size:17px;color:var(--ink)
+    font-family:var(--mono);font-size:17px;color:var(--ink);transition:background .1s,color .1s
   }
   .step-btns button:hover{background:var(--paper-2)}
+  .step-btns button:active{background:var(--ink);color:var(--tile)}
   .step-btns span{
     min-width:26px;text-align:center;font-family:var(--mono);font-size:15px;
     border-left:1.5px solid var(--ink);border-right:1.5px solid var(--ink);height:34px;line-height:34px
@@ -159,15 +195,22 @@
   @keyframes in{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
   .more{
     font-family:var(--mono);font-size:13px;background:none;border:0;
-    border-bottom:1.5px solid var(--ink);padding:2px 0;margin-top:12px;cursor:pointer;color:var(--ink)
+    border-bottom:1.5px solid var(--ink);padding:2px 0;margin-top:12px;cursor:pointer;color:var(--ink);
+    transition:color .1s,border-color .1s
   }
+  .more:hover{color:var(--live);border-color:var(--live)}
   .empty{
-    border:1.5px dashed var(--rule);padding:22px;margin-top:26px;
-    color:var(--ink-soft);max-width:52ch
+    border:1.5px dashed var(--rule);border-radius:3px;padding:22px;margin-top:26px;
+    color:var(--ink-soft);max-width:52ch;background:var(--paper-2)
   }
   .empty b{display:block;color:var(--ink);font-family:var(--display);font-size:18px;margin-bottom:6px}
   footer{margin-top:60px;padding-top:18px;border-top:1.5px solid var(--rule);
     font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);line-height:1.7}
+  @media (max-width:420px){
+    .row{flex-direction:column;align-items:stretch}
+    .go{width:100%}
+    .stepper{justify-content:space-between}
+  }
   @media (prefers-reduced-motion:reduce){
     *{animation:none!important;transition:none!important}
   }
@@ -178,6 +221,7 @@
 
   <p class="eyebrow">every letter used · nothing left over</p>
   <h1>Anagram Pool</h1>
+  <p class="byline">Made by <a href="https://www.milo.games" target="_blank" rel="noopener">Milo Kesteloot</a></p>
   <p class="lede">Type letters, get every way to spell them out as real words. <b>dafuyn</b> becomes <b>fun day</b>. Spaces and punctuation are ignored, and results always use the whole pool.</p>
 
   <div class="field">
@@ -308,6 +352,7 @@ function search(letters, minLen, cap, required, excluded){
   var maxDepth = Math.floor(total / minLen);
   var stack = [], remaining = total, found = 0, halted = false;
   var lastTick = Date.now();
+  var lastYield = Date.now();
 
   function emit(){
     var key = stack.slice().sort(function(a,b){return a-b;}).join(',');
@@ -319,14 +364,19 @@ function search(letters, minLen, cap, required, excluded){
     if (found >= cap){ halted = true; }
   }
 
-  function recurse(depthLeft){
+  // A generator, so the driver below can pause it mid-search and hand control
+  // back to the worker's event loop — otherwise a long recursive search never
+  // returns, and an incoming 'stop' message just sits in the queue unread.
+  function* recurse(depthLeft){
     if (halted || stopFlag) return;
     if (remaining === 0){ emit(); return; }
     if (depthLeft === 0) return;
     if (remaining > depthLeft * maxLen) return;   // too many letters left to ever finish
 
-    if (Date.now() - lastTick > 250){
-      lastTick = Date.now();
+    var now = Date.now();
+    if (now - lastYield > 8){ lastYield = now; yield; }
+    if (now - lastTick > 250){
+      lastTick = now;
       self.postMessage({type:'tick', found:found});
     }
 
@@ -343,7 +393,7 @@ function search(letters, minLen, cap, required, excluded){
       for (k3=0;k3<26;k3++) pool[k3] -= c[k3];
       remaining -= cand[ix].length;
       stack.push(ix);
-      recurse(depthLeft-1);
+      yield* recurse(depthLeft-1);
       stack.pop();
       remaining += cand[ix].length;
       for (k3=0;k3<26;k3++) pool[k3] += c[k3];
@@ -351,18 +401,45 @@ function search(letters, minLen, cap, required, excluded){
     }
   }
 
-  // Iterative deepening, so results arrive fewest-words-first.
-  for (var d=1; d<=maxDepth; d++){
-    if (halted || stopFlag) break;
-    self.postMessage({type:'depth', depth:d+required.length, max:maxDepth+required.length});
-    recurse(d);
-    self.postMessage({type:'depth-done', depth:d+required.length});
+  // Drives the generator in short synchronous bursts (~16ms), yielding to the
+  // real event loop between bursts via setTimeout so a queued 'stop' message
+  // actually gets dispatched and stopFlag is seen promptly.
+  function runDeepening(){
+    var d = 1, gen = null;
+
+    function nextDepth(){
+      if (halted || stopFlag || d > maxDepth){ finish(); return; }
+      self.postMessage({type:'depth', depth:d+required.length, max:maxDepth+required.length});
+      gen = recurse(d);
+      pump();
+    }
+
+    function pump(){
+      var start = Date.now();
+      var res = {done:false};
+      while (!res.done && !stopFlag && Date.now() - start < 16){
+        res = gen.next();
+      }
+      if (stopFlag){ finish(); return; }
+      if (!res.done){ setTimeout(pump, 0); return; }
+      self.postMessage({type:'depth-done', depth:d+required.length});
+      d++;
+      setTimeout(nextDepth, 0);
+    }
+
+    nextDepth();
   }
-  self.postMessage({
-    type:'done',
-    found:found,
-    reason: stopFlag ? 'stopped' : (halted ? 'capped' : 'complete')
-  });
+
+  function finish(){
+    self.postMessage({
+      type:'done',
+      found:found,
+      reason: stopFlag ? 'stopped' : (halted ? 'capped' : 'complete')
+    });
+  }
+
+  // Iterative deepening, so results arrive fewest-words-first.
+  runDeepening();
 }
 </script>
 
@@ -433,6 +510,7 @@ var worker = null;
 var running = false;
 var minLen = 3;
 var groups = {};         // wordCount -> {items, node, shown}
+var lastReason = null;   // reason from the most recent 'done' message
 
 var $ = function(id){ return document.getElementById(id); };
 var input=$('input'), poolEl=$('pool'), countEl=$('count'),
@@ -461,7 +539,7 @@ function tileStrip(words, interactive){
 function wireWordActions(el, word){
   el.tabIndex = 0;
   el.setAttribute('role', 'button');
-  el.title = 'Click to require “' + word + '” · right-click to exclude it';
+  el.title = 'Click to exclude “' + word + '” · right-click to require it';
 
   var actions = document.createElement('div');
   actions.className = 'word-actions';
@@ -479,10 +557,10 @@ function wireWordActions(el, word){
   actions.appendChild(reqBtn); actions.appendChild(exBtn);
   el.appendChild(actions);
 
-  el.addEventListener('click', function(){ requireWord(word); });
-  el.addEventListener('contextmenu', function(e){ e.preventDefault(); excludeWord(word); });
+  el.addEventListener('click', function(){ excludeWord(word); });
+  el.addEventListener('contextmenu', function(e){ e.preventDefault(); requireWord(word); });
   el.addEventListener('keydown', function(e){
-    if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); requireWord(word); }
+    if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); excludeWord(word); }
   });
 }
 
@@ -507,17 +585,24 @@ function removeWordFromField(el, word){
   el.value = fieldWords(el).filter(function(w){ return w !== word; }).join(', ');
 }
 
+function passesCurrentFilters(words){
+  var req = requiredWords(), ex = excludedWords(), i;
+  for (i=0;i<ex.length;i++) if (words.indexOf(ex[i]) !== -1) return false;
+  for (i=0;i<req.length;i++) if (words.indexOf(req[i]) === -1) return false;
+  return true;
+}
+
 function requireWord(word){
   removeWordFromField(excludedInput, word);
   addWordToField(requiredInput, word);
   renderPool();
-  if (!goBtn.disabled) startSearch();
+  applyFilters();
 }
 function excludeWord(word){
   removeWordFromField(requiredInput, word);
   addWordToField(excludedInput, word);
   renderPool();
-  if (!goBtn.disabled) startSearch();
+  applyFilters();
 }
 
 function renderPool(){
@@ -729,6 +814,7 @@ function startSearch(){
 
   resultsEl.innerHTML = '';
   groups = {};
+  lastReason = null;
   running = true;
   goBtn.textContent = 'Stop';
   goBtn.classList.add('stop');
@@ -785,9 +871,44 @@ function paint(g){
   } else if (btn){ btn.remove(); }
 }
 
+function totalShown(){
+  return Object.keys(groups).reduce(function(sum,n){ return sum + groups[n].items.length; }, 0);
+}
+
+// Re-checks every already-rendered result against the current require/exclude
+// fields and drops the rows that no longer qualify — no new search needed,
+// so clicking a word to require/exclude it updates the list instantly.
+function applyFilters(){
+  Object.keys(groups).forEach(function(n){
+    var g = groups[n];
+    g.items = g.items.filter(passesCurrentFilters);
+    if (!g.items.length){
+      g.wrap.remove();
+      delete groups[n];
+      return;
+    }
+    g.shown = 0;
+    g.body.innerHTML = '';
+    paint(g);
+  });
+  if (!running && lastReason) updateStatusText();
+}
+
+function updateStatusText(){
+  var total = totalShown();
+  if (!total){ showEmpty(); return; }
+  var word = total === 1 ? 'anagram' : 'anagrams';
+  statusEl.className = 'status';
+  statusEl.textContent =
+    lastReason === 'capped'  ? 'Stopped at ' + total + ' ' + word + ' — there are more.' :
+    lastReason === 'stopped' ? 'Stopped. ' + total + ' ' + word + ' so far.' :
+    total + ' ' + word + ' found. That is all of them.';
+}
+
 function onWorker(e){
   var m = e.data;
   if (m.type === 'hit'){
+    if (!passesCurrentFilters(m.words)) return;   // a filter was added mid-search
     var g = groupFor(m.words.length);
     g.items.push(m.words);
     if (g.shown < PAGE) paint(g);
@@ -810,17 +931,15 @@ function onWorker(e){
     updateGo();
     if (m.reason === 'required-no-fit'){ showRequiredError('“' + m.word + '” needs letters you don’t have in this pool.'); return; }
     if (m.reason === 'required-invalid'){ showRequiredError('“' + m.word + '” isn’t a usable word — letters only.'); return; }
-    if (!m.found){ showEmpty(); return; }
-    var word = m.found === 1 ? 'anagram' : 'anagrams';
-    statusEl.textContent =
-      m.reason === 'capped'  ? 'Stopped at ' + m.found + ' ' + word + ' — there are more.' :
-      m.reason === 'stopped' ? 'Stopped. ' + m.found + ' ' + word + ' so far.' :
-      m.found + ' ' + word + ' found. That is all of them.';
+    lastReason = m.reason;
+    updateStatusText();
   }
 }
 
 function showEmpty(){
   statusEl.textContent = '';
+  var existing = resultsEl.querySelector('.empty');
+  if (existing) existing.remove();
   var box = document.createElement('div');
   box.className = 'empty';
   box.innerHTML = '<b>No anagrams.</b>Every letter has to be used, so one awkward letter can rule out ' +
@@ -835,6 +954,47 @@ function showRequiredError(msg){
   box.innerHTML = '<b>Can’t use that requirement.</b>' + msg;
   resultsEl.appendChild(box);
 }
+
+/* ---------------- copy/paste ----------------
+   Letter tiles are built from nested flex/grid boxes (.strip > .word > .tile)
+   for the visual look. Per the CSS spec, flex/grid children get "blockified",
+   so the browser's default copy serializes each tile onto its own line. We
+   rebuild the plain text ourselves: tiles concatenate into a word, words get
+   a single space between them, and normal block elements still get a line
+   break. */
+var COPY_BLOCK_TAGS = {DIV:1,P:1,SECTION:1,H1:1,H2:1,H3:1,H4:1,FOOTER:1,BUTTON:1,LABEL:1};
+function serializeForCopy(node){
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent;
+  if (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE){
+    var frag = '';
+    node.childNodes.forEach(function(c){ frag += serializeForCopy(c); });
+    return frag;
+  }
+  if (node.nodeType !== Node.ELEMENT_NODE) return '';
+  if (node.tagName === 'BR') return '\n';
+  if (node.classList.contains('word-actions')) return '';   // hover tooltip, never copy it
+  var inner = '';
+  node.childNodes.forEach(function(c){ inner += serializeForCopy(c); });
+  if (node.classList.contains('word')) return inner + ' ';
+  if (COPY_BLOCK_TAGS[node.tagName]) return '\n' + inner + '\n';
+  return inner;
+}
+document.addEventListener('copy', function(e){
+  var active = document.activeElement;
+  if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
+  var sel = window.getSelection();
+  if (!sel || sel.isCollapsed || !sel.rangeCount) return;
+  var frag = sel.getRangeAt(0).cloneContents();
+  if (!frag.querySelector('.tile')) return;   // selection doesn't touch the tiles, let default copy run
+  var text = serializeForCopy(frag)
+    .split('\n')
+    .map(function(line){ return line.replace(/[ \t]+/g, ' ').trim(); })
+    .filter(Boolean)
+    .join('\n');
+  if (!text) return;
+  e.clipboardData.setData('text/plain', text);
+  e.preventDefault();
+});
 
 /* ---------------- wiring ---------------- */
 input.addEventListener('input', renderPool);
