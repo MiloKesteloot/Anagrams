@@ -32,13 +32,9 @@
     -webkit-font-smoothing:antialiased;
   }
   ::selection{background:var(--live);color:var(--tile)}
-  .wrap{max-width:760px;margin:0 auto;padding:32px 20px 96px}
+  .wrap{max-width:760px;margin:0 auto;padding:clamp(48px,10vh,96px) 20px 96px}
 
   /* ---- masthead ---- */
-  .eyebrow{
-    font-family:var(--mono);font-size:11px;letter-spacing:.18em;
-    text-transform:uppercase;color:var(--ink-soft);margin:0 0 10px
-  }
   h1{
     font-family:var(--display);font-weight:800;
     font-size:clamp(34px,8vw,58px);line-height:.95;
@@ -219,8 +215,7 @@
 <body>
 <div class="wrap">
 
-  <p class="eyebrow">every letter used · nothing left over</p>
-  <h1>Anagram Pool</h1>
+  <h1>Anagrams</h1>
   <p class="byline">Made by <a href="https://www.milo.games" target="_blank" rel="noopener">Milo Kesteloot</a></p>
   <p class="lede">Type letters, get every way to spell them out as real words. <b>dafuyn</b> becomes <b>fun day</b>. Spaces and punctuation are ignored, and results always use the whole pool.</p>
 
